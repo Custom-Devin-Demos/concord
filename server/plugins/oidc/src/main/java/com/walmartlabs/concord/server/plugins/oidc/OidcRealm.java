@@ -93,7 +93,7 @@ public class OidcRealm extends AuthorizingRealm {
                 .orElseThrow(() -> new ConcordApplicationException("User not found: " + profile.getEmail()));
         UUID userId = u.getId();
 
-        userManager.update(userId, profile.getDisplayName(), profile.getEmail(), null, false, null);
+        userManager.update(userId, profile.getDisplayName(), profile.getEmail(), UserType.LOCAL, false, null);
 
         Set<UUID> newTeams = new HashSet<>();
         teamDao.tx(tx -> {

@@ -388,8 +388,7 @@ public class SecretResource implements Resource {
         }
 
         if (owner.username() != null) {
-            // TODO don't assume LDAP here
-            return userManager.get(owner.username(), owner.userDomain(), UserType.LDAP)
+            return userManager.get(owner.username(), owner.userDomain(), null)
                     .orElseThrow(() -> new ConcordApplicationException("User not found: " + owner.username()))
                     .getId();
         }

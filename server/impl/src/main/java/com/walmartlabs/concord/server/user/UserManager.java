@@ -43,9 +43,12 @@ public class UserManager {
     private final UserDao userDao;
     private final TeamDao teamDao;
     private final AuditLog auditLog;
-    private final Map<UserType, UserInfoProvider> userInfoProviders;
+    private final Map<String, UserInfoProvider> userInfoProviders;
 
     private static final String SSO_REALM_NAME = "sso";
+    private static final String LOCAL_REALM_NAME = "local";
+    private static final String LDAP_REALM_NAME = "ldap";
+    private static final String OIDC_REALM_NAME = "oidc";
 
     @Inject
     public UserManager(UserDao userDao, TeamDao teamDao, AuditLog auditLog, Set<UserInfoProvider> providers) {
@@ -54,7 +57,15 @@ public class UserManager {
         this.auditLog = auditLog;
 
         this.userInfoProviders = new HashMap<>();
-        providers.forEach(p -> this.userInfoProviders.put(p.getUserType(), p));
+        providers.forEach(p -> {
+            UserType userType = p.getUserType();
+            String realmName = mapUserTypeToRealm(userType);
+            this.userInfoProviders.put(realmName, p);
+            
+            if (userType == UserType.LOCAL) {
+                this.userInfoProviders.put(OIDC_REALM_NAME, p);
+            }
+        });
     }
 
     public Optional<UserEntry> get(String username, String domain, UserType type) {
@@ -84,7 +95,8 @@ public class UserManager {
             type = UserPrincipal.assertCurrent().getType();
         }
 
-        UserInfoProvider provider = assertProvider(type);
+        String realm = UserPrincipal.assertCurrent().getRealm();
+        UserInfoProvider provider = assertProvider(realm);
         UserInfo info = provider.getInfo(null, username, userDomain);
         if (info != null) {
             username = info.username();
@@ -147,8 +159,7 @@ public class UserManager {
             type = UserPrincipal.assertCurrent().getType();
         }
 
-        UserInfoProvider provider = assertProvider(type);
-        UUID id = provider.create(username, domain, displayName, email, roles);
+        UUID id = userDao.insertOrUpdate(username, domain, displayName, email, type, roles);
 
         // add the new user to the default org/team
         UUID teamId = TeamManager.DEFAULT_ORG_TEAM_ID;
@@ -179,8 +190,8 @@ public class UserManager {
         if (u == null) {
             return null;
         }
-        UserType type = assertSsoUserType(u, u.getType());
-        UserInfoProvider p = assertProvider(type);
+        String realm = u.getRealm();
+        UserInfoProvider p = assertProvider(realm);
         return p.getInfo(u.getId(), u.getUsername(), u.getDomain());
     }
 
@@ -189,7 +200,9 @@ public class UserManager {
     }
 
     public UserInfo getInfo(String username, String domain, UserType type) {
-        UserInfoProvider p = assertProvider(assertUserType(username, domain, type));
+        UserPrincipal currentUser = UserPrincipal.getCurrent();
+        String realm = currentUser != null ? currentUser.getRealm() : mapUserTypeToRealm(type);
+        UserInfoProvider p = assertProvider(realm);
         return p.getInfo(null, username, domain);
     }
 
@@ -269,10 +282,10 @@ public class UserManager {
                 .log();
     }
 
-    private UserInfoProvider assertProvider(UserType type) {
-        UserInfoProvider p = userInfoProviders.get(type);
+    private UserInfoProvider assertProvider(String realm) {
+        UserInfoProvider p = userInfoProviders.get(realm);
         if (p == null) {
-            throw new ConcordApplicationException("Unknown user account type: " + type);
+            throw new ConcordApplicationException("Unknown realm: " + realm);
         }
         return p;
     }
@@ -295,7 +308,7 @@ public class UserManager {
 
     private UserType assertSsoUserType(UserPrincipal u, UserType type) {
         if (u.getRealm().equals(SSO_REALM_NAME)) {
-            if (userInfoProviders.get(UserType.SSO) != null) {
+            if (userInfoProviders.get(SSO_REALM_NAME) != null) {
                 return UserType.SSO;
             }
         }
@@ -311,6 +324,22 @@ public class UserManager {
      */
     private static StatusChange describeStatusChange(boolean disabled, boolean permanentlyDisabled) {
         return new StatusChange(disabled, permanentlyDisabled);
+    }
+
+    private String mapUserTypeToRealm(UserType userType) {
+        if (userType == null) {
+            return LOCAL_REALM_NAME;
+        }
+        switch (userType) {
+            case LOCAL:
+                return LOCAL_REALM_NAME;
+            case LDAP:
+                return LDAP_REALM_NAME;
+            case SSO:
+                return SSO_REALM_NAME;
+            default:
+                return LOCAL_REALM_NAME;
+        }
     }
 
     private record StatusChange(boolean disabled, boolean permanentlyDisabled) {

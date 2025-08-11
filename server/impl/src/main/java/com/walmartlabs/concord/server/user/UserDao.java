@@ -175,6 +175,8 @@ public class UserDao extends AbstractDao {
 
         if (type != null) {
             q.and(USERS.USER_TYPE.eq(type.toString()));
+        } else {
+            q.and(USERS.USER_TYPE.isNull().or(USERS.USER_TYPE.isNotNull()));
         }
 
         List<UUID> result = q.fetch(USERS.USER_ID);
