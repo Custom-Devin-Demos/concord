@@ -57,6 +57,15 @@ public class UserManager {
         providers.forEach(p -> this.userInfoProviders.put(p.getUserType(), p));
     }
 
+    private UserInfoProvider getProviderByRealm(String realm) {
+        return switch (realm) {
+            case "ldap" -> userInfoProviders.get(UserType.LDAP);
+            case "oidc", "sso" -> userInfoProviders.get(UserType.SSO);
+            case "apikey", "github" -> userInfoProviders.get(UserType.LOCAL);
+            default -> userInfoProviders.get(UserType.LOCAL);
+        };
+    }
+
     public Optional<UserEntry> get(String username, String domain, UserType type) {
         if (type == null) {
             type = UserPrincipal.assertCurrent().getType();
@@ -72,6 +81,42 @@ public class UserManager {
 
     public Optional<UserEntry> getOrCreate(String username, String userDomain, UserType type) {
         return getOrCreate(username, userDomain, type, null, null, null);
+    }
+
+    public UserEntry createFromRealm(String username, String domain, String displayName, String email, Set<String> roles) {
+        UserPrincipal current = UserPrincipal.assertCurrent();
+        UserInfoProvider provider = getProviderByRealm(current.getRealm());
+        
+        UserInfo info = provider.getInfo(null, username, domain);
+        if (info != null) {
+            username = info.username();
+            domain = info.userDomain();
+            displayName = info.displayName();
+            email = info.email();
+        }
+        
+        UUID id = userDao.insertOrUpdate(username, domain, displayName, email, null, roles);
+        
+        UUID teamId = TeamManager.DEFAULT_ORG_TEAM_ID;
+        teamDao.upsertUser(teamId, id, TeamRole.MEMBER);
+
+        UserEntry e = userDao.get(id);
+        auditLog.add(AuditObject.USER, AuditAction.CREATE)
+                .field("userId", id)
+                .field("username", e.getName())
+                .changes(null, e)
+                .log();
+
+        return e;
+    }
+
+    public Optional<UserEntry> getOrCreateFromRealm(String username, String userDomain) {
+        Optional<UserEntry> result = get(username, userDomain, null);
+        if (result.isPresent()) {
+            return result;
+        }
+        
+        return Optional.of(createFromRealm(username, userDomain, null, null, null));
     }
 
     public Optional<UserEntry> getOrCreate(String username, String userDomain, UserType type, String displayName, String email, Set<String> roles) {
@@ -147,10 +192,8 @@ public class UserManager {
             type = UserPrincipal.assertCurrent().getType();
         }
 
-        UserInfoProvider provider = assertProvider(type);
-        UUID id = provider.create(username, domain, displayName, email, roles);
+        UUID id = userDao.insertOrUpdate(username, domain, displayName, email, type, roles);
 
-        // add the new user to the default org/team
         UUID teamId = TeamManager.DEFAULT_ORG_TEAM_ID;
         teamDao.upsertUser(teamId, id, TeamRole.MEMBER);
 
@@ -179,8 +222,7 @@ public class UserManager {
         if (u == null) {
             return null;
         }
-        UserType type = assertSsoUserType(u, u.getType());
-        UserInfoProvider p = assertProvider(type);
+        UserInfoProvider p = getProviderByRealm(u.getRealm());
         return p.getInfo(u.getId(), u.getUsername(), u.getDomain());
     }
 
@@ -189,8 +231,18 @@ public class UserManager {
     }
 
     public UserInfo getInfo(String username, String domain, UserType type) {
-        UserInfoProvider p = assertProvider(assertUserType(username, domain, type));
-        return p.getInfo(null, username, domain);
+        UUID userId = userDao.getId(username, domain, null);
+        if (userId == null) {
+            return null;
+        }
+        UserEntry entry = userDao.get(userId);
+        return UserInfo.builder()
+            .id(entry.getId())
+            .username(entry.getName())
+            .userDomain(entry.getDomain())
+            .displayName(entry.getDisplayName())
+            .email(entry.getEmail())
+            .build();
     }
 
     public void enable(UUID userId) {

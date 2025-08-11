@@ -67,21 +67,6 @@ public class LdapUserInfoProvider implements UserInfoProvider {
         }
     }
 
-    @Override
-    public UUID create(String username, String userDomain, String displayName, String email, Set<String> roles) {
-        if (!Roles.isAdmin() && !cfg.isAutoCreateUsers()) {
-            // unfortunately there's no easy way to throw a custom authentication error and keep the original message
-            // this will result in a 401 response with an empty body anyway
-            throw new ConcordApplicationException("Automatic creation of users is disabled.");
-        }
-
-        UserInfo info = getInfo(null, username, userDomain);
-        if (info == null) {
-            throw new ConcordApplicationException("User '" + username + "' with domain '" + userDomain + "' not found in LDAP");
-        }
-
-        return userDao.insertOrUpdate(info.username(), info.userDomain(), info.displayName(), info.email(), UserType.LDAP, roles);
-    }
     
     private static UserInfo buildInfo(UUID id, LdapPrincipal p) {
         if (p == null) {

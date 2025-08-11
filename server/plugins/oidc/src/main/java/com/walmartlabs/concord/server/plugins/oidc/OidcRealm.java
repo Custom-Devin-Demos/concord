@@ -89,7 +89,7 @@ public class OidcRealm extends AuthorizingRealm {
         // TODO replace getOrCreate+update with a single method?
 
         String username = profile.getEmail().toLowerCase();
-        UserEntry u = userManager.getOrCreate(username, null, UserType.LOCAL)
+        UserEntry u = userManager.getOrCreateFromRealm(username, null)
                 .orElseThrow(() -> new ConcordApplicationException("User not found: " + profile.getEmail()));
         UUID userId = u.getId();
 

@@ -118,7 +118,7 @@ public class LdapRealm extends AbstractLdapRealm {
 
         // TODO merge getOrCreate+update operations into a single one (only for this use case)
 
-        UserEntry u = userManager.getOrCreate(ldapPrincipal.getUsername(), ldapPrincipal.getDomain(), UserType.LDAP)
+        UserEntry u = userManager.getOrCreateFromRealm(ldapPrincipal.getUsername(), ldapPrincipal.getDomain())
                 .orElseThrow(() -> new ConcordApplicationException("User not found: " + ldapPrincipal.getUsername()));
 
         if (u.isDisabled()) {
