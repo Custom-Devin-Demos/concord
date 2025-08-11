@@ -45,8 +45,4 @@ public class LocalUserInfoProvider extends AbstractUserInfoProvider {
         return getInfo(id, username, userDomain, UserType.LOCAL);
     }
 
-    @Override
-    public UUID create(String username, String domain, String displayName, String email, Set<String> roles) {
-        return create(username, domain, displayName, email, roles, UserType.LOCAL);
-    }
 }

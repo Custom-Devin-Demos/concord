@@ -45,7 +45,6 @@ public interface UserInfoProvider {
      */
     UserInfo getInfo(UUID id, String username, String userDomain);
 
-    UUID create(String username, String domain, String displayName, String email, Set<String> roles);
 
     @Value.Immutable
     @JsonInclude(NON_EMPTY)

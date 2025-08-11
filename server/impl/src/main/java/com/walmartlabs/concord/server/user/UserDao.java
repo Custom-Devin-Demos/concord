@@ -66,16 +66,31 @@ public class UserDao extends AbstractDao {
     public UUID insertOrUpdate(String username, String domain, String displayName, String email, UserType type, Set<String> roles) {
         UUID userId = uuidGenerator.generate();
         return txResult(tx -> {
-            UUID effectiveUserId = tx.insertInto(USERS)
-                    .columns(USERS.USER_ID, USERS.USERNAME, USERS.DOMAIN, USERS.DISPLAY_NAME, USERS.USER_EMAIL, USERS.USER_TYPE)
-                    .values(userId, toLowerCase(username), toLowerCase(domain), displayName, email, type.toString())
-                    .onConflict(lower(USERS.USERNAME), lower(USERS.DOMAIN), field(USERS.USER_TYPE))
-                    .doUpdate()
-                    .set(USERS.DISPLAY_NAME, displayName)
-                    .set(USERS.USER_EMAIL, email)
-                    .returning(USERS.USER_ID)
-                    .fetchOne()
-                    .getUserId();
+            UUID effectiveUserId;
+            
+            if (type != null) {
+                effectiveUserId = tx.insertInto(USERS)
+                        .columns(USERS.USER_ID, USERS.USERNAME, USERS.DOMAIN, USERS.DISPLAY_NAME, USERS.USER_EMAIL, USERS.USER_TYPE)
+                        .values(userId, toLowerCase(username), toLowerCase(domain), displayName, email, type.toString())
+                        .onConflict(lower(USERS.USERNAME), lower(USERS.DOMAIN), field(USERS.USER_TYPE))
+                        .doUpdate()
+                        .set(USERS.DISPLAY_NAME, displayName)
+                        .set(USERS.USER_EMAIL, email)
+                        .returning(USERS.USER_ID)
+                        .fetchOne()
+                        .getUserId();
+            } else {
+                effectiveUserId = tx.insertInto(USERS)
+                        .columns(USERS.USER_ID, USERS.USERNAME, USERS.DOMAIN, USERS.DISPLAY_NAME, USERS.USER_EMAIL)
+                        .values(userId, toLowerCase(username), toLowerCase(domain), displayName, email)
+                        .onConflict(lower(USERS.USERNAME), lower(USERS.DOMAIN))
+                        .doUpdate()
+                        .set(USERS.DISPLAY_NAME, displayName)
+                        .set(USERS.USER_EMAIL, email)
+                        .returning(USERS.USER_ID)
+                        .fetchOne()
+                        .getUserId();
+            }
 
             if (roles != null) {
                 updateRoles(tx, effectiveUserId, roles);
