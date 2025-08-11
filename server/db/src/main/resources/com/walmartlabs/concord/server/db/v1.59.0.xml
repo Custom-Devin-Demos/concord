@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-3.3.xsd">
+
+    <changeSet id="1590000" author="devin-ai@cognition.ai">
+        <comment>Make USER_TYPE column nullable to support realm-based authentication</comment>
+        <dropNotNullConstraint tableName="USERS" columnName="USER_TYPE"/>
+    </changeSet>
+
+    <changeSet id="1590010" author="devin-ai@cognition.ai">
+        <comment>Update unique constraint to handle nullable USER_TYPE</comment>
+        <dropIndex tableName="USERS" indexName="IDX_USERS_UNIQ"/>
+        <createIndex tableName="USERS" indexName="IDX_USERS_UNIQ" unique="true">
+            <column name="lower(USERNAME)"/>
+            <column name="lower(DOMAIN)"/>
+            <column name="COALESCE(USER_TYPE, 'NULL')"/>
+        </createIndex>
+    </changeSet>
+</databaseChangeLog>

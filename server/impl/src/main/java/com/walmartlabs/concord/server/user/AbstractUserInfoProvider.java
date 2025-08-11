@@ -54,7 +54,4 @@ public abstract class AbstractUserInfoProvider implements UserInfoProvider{
                 .build();
     }
 
-    protected UUID create(String username, String domain, String displayName, String email, Set<String> roles, UserType type) {
-        return userDao.insertOrUpdate(username, domain, displayName, email, type, roles);
-    }
 }
